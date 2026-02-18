@@ -12,6 +12,7 @@ async def init_db():
                 role             TEXT DEFAULT 'student',
                 full_name        TEXT,
                 group_name       TEXT,
+                subgroup         INTEGER DEFAULT 0,
                 semestr          INTEGER DEFAULT 2,
                 notify_before    INTEGER DEFAULT 15,
                 notify_evening   BOOLEAN DEFAULT 1,
@@ -22,6 +23,7 @@ async def init_db():
         for col, definition in [
             ("role", "TEXT DEFAULT 'student'"),
             ("full_name", "TEXT"),
+            ("subgroup", "INTEGER DEFAULT 0"),
         ]:
             try:
                 await db.execute(f"ALTER TABLE users ADD COLUMN {col} {definition}")

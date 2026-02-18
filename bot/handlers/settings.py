@@ -26,6 +26,8 @@ def main_settings_keyboard(user: dict) -> InlineKeyboardMarkup:
     notif_status = "✅" if user.get("notifications_on") else "❌"
     evening_status = "✅" if user.get("notify_evening") else "❌"
     before = user.get("notify_before", 15)
+    subgroup = user.get("subgroup", 0)
+    subgroup_label = {0: "👥 Обидві", 1: "1️⃣ Перша", 2: "2️⃣ Друга"}.get(subgroup, "👥 Обидві")
 
     rows = [
         [InlineKeyboardButton(text="👤 Особистий кабінет", callback_data="open_cabinet")],
@@ -33,6 +35,7 @@ def main_settings_keyboard(user: dict) -> InlineKeyboardMarkup:
     ]
     if role == "student":
         rows.insert(1, [InlineKeyboardButton(text=f"🏫 Група: {group}", callback_data="set_group")])
+        rows.insert(2, [InlineKeyboardButton(text=f"👥 Підгрупа: {subgroup_label}", callback_data="set_subgroup")])
 
     rows += [
         [InlineKeyboardButton(text=f"⏰ Сповіщення за: {before} хв", callback_data="set_notify_before")],
@@ -71,6 +74,16 @@ def semestr_keyboard() -> InlineKeyboardMarkup:
     ])
 
 
+def subgroup_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="1️⃣ Перша", callback_data="subgroup_1"),
+            InlineKeyboardButton(text="2️⃣ Друга", callback_data="subgroup_2"),
+            InlineKeyboardButton(text="👥 Обидві", callback_data="subgroup_0"),
+        ]
+    ])
+
+
 def notify_before_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [
@@ -93,6 +106,8 @@ def settings_text(user: dict) -> str:
     before = user.get("notify_before", 15)
     evening = "✅" if user.get("notify_evening") else "❌"
     notif = "✅" if user.get("notifications_on") else "❌"
+    subgroup = user.get("subgroup", 0)
+    subgroup_label = {0: "👥 Обидві", 1: "1️⃣ Перша", 2: "2️⃣ Друга"}.get(subgroup, "👥 Обидві")
 
     lines = [
         "⚙️ <b>Налаштування</b>\n",
@@ -101,6 +116,7 @@ def settings_text(user: dict) -> str:
     ]
     if role == "student":
         lines.append(f"🏫 Група: <b>{group}</b>")
+        lines.append(f"👥 Підгрупа: <b>{subgroup_label}</b>")
     lines += [
         f"📚 Семестр: <b>{sem}</b>",
         f"⏰ Сповіщення за: <b>{before} хв</b>",
@@ -244,6 +260,25 @@ async def process_semestr(callback: CallbackQuery):
     await callback.message.delete()
     await show_settings(callback, user)
     await callback.answer(f"Семестр {sem} ✅")
+
+
+# ─── Підгрупа ──────────────────────────────────────────────────────────────────
+
+@router.callback_query(F.data == "set_subgroup")
+async def cb_set_subgroup(callback: CallbackQuery):
+    await callback.message.answer("👥 Оберіть підгрупу:", reply_markup=subgroup_keyboard())
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("subgroup_"))
+async def process_subgroup(callback: CallbackQuery):
+    sg = int(callback.data.split("_")[1])
+    await upsert_user(callback.from_user.id, subgroup=sg)
+    user = await get_user(callback.from_user.id)
+    labels = {0: "Обидві підгрупи", 1: "1-ша підгрупа", 2: "2-га підгрупа"}
+    await callback.message.delete()
+    await show_settings(callback, user)
+    await callback.answer(f"{labels.get(sg, '')} ✅")
 
 
 # ─── Сповіщення ────────────────────────────────────────────────────────────────

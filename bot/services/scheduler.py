@@ -11,10 +11,33 @@ _prev_schedules: dict = {}
 
 
 def format_lesson_notify(lesson: dict) -> str:
-    lines = [f"📖 {lesson['info']}"]
-    if lesson.get("url"):
-        lines.append(f"🔗 {lesson['url']}")
-    return "\n".join(lines)
+    """Форматує пару для сповіщення. Для чисельник/знаменник — показує активну."""
+    if lesson.get("numerator") or lesson.get("denominator"):
+        # Показуємо тільки активну пару
+        num = lesson.get("numerator")
+        den = lesson.get("denominator")
+        active = None
+        if num and num.get("is_active"):
+            active = num
+        elif den and den.get("is_active"):
+            active = den
+        else:
+            # Якщо жодна не активна — показуємо обидві
+            parts = []
+            if num:
+                parts.append(f"📌 Чисельник: {num['info']}")
+            if den:
+                parts.append(f"📌 Знаменник: {den['info']}")
+            return "\n".join(parts)
+        lines = [f"📖 {active['info']}"]
+        if active.get("url"):
+            lines.append(f"🔗 {active['url']}")
+        return "\n".join(lines)
+    else:
+        lines = [f"📖 {lesson['info']}"]
+        if lesson.get("url"):
+            lines.append(f"🔗 {lesson['url']}")
+        return "\n".join(lines)
 
 
 async def notify_before_class(bot: Bot):
@@ -32,12 +55,26 @@ async def notify_before_class(bot: Bot):
     users = await get_all_users()
 
     for user in users:
-        group = user.get("group_name")
+        if not user.get("notifications_on", 1):
+            continue
+
+        role = user.get("role", "student")
         semestr = user.get("semestr", 2)
         notify_before = user.get("notify_before", 15)
 
+        # Отримуємо розклад залежно від ролі
         try:
-            schedule = await fetch_schedule(group, semestr)
+            if role == "teacher":
+                from bot.services.parser import fetch_teacher_schedule
+                teacher_name = user.get("full_name", "").strip()
+                if not teacher_name:
+                    continue
+                schedule = await fetch_teacher_schedule(teacher_name, semestr)
+            else:
+                group = user.get("group_name", "").strip()
+                if not group:
+                    continue
+                schedule = await fetch_schedule(group, semestr)
         except Exception:
             continue
 
@@ -55,6 +92,10 @@ async def notify_before_class(bot: Bot):
             pair_hour, pair_min = map(int, pair_time_str.split(":"))
             pair_dt = now.replace(hour=pair_hour, minute=pair_min, second=0, microsecond=0)
             diff = (pair_dt - now).total_seconds() / 60
+
+            # Пара вже минула — пропускаємо
+            if diff < 0:
+                continue
 
             # Надсилаємо якщо залишилось рівно notify_before хвилин (±0.5 хв)
             if abs(diff - notify_before) <= 0.5:

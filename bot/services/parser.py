@@ -76,50 +76,69 @@ def _parse_html(html: str) -> dict:
                 text = block_copy.get_text("\n", strip=True)
                 return {"info": text, "url": lesson_url}
 
-            # Шукаємо чисельник і знаменник за id
+            # Визначаємо тип блоку за id обгортки
             chys_wrapper = element.select_one("#group_chys")
             znam_wrapper = element.select_one("#group_znam")
+            sub1_wrapper = element.select_one("#sub_1_full")
+            sub2_wrapper = element.select_one("#sub_2_full")
+            full_wrapper = element.select_one("#group_full")
 
             if chys_wrapper and znam_wrapper:
-                # Пара з чисельником/знаменником
-                # week_color клас = активний тиждень
+                # Чисельник / знаменник (вся група)
                 chys_active = "week_color" in chys_wrapper.get("class", [])
                 znam_active = "week_color" in znam_wrapper.get("class", [])
-
-                chys_block = chys_wrapper.select_one(".group_content")
-                znam_block = znam_wrapper.select_one(".group_content")
-
-                num_data = extract_lesson(chys_block)
-                den_data = extract_lesson(znam_block)
-
+                num_data = extract_lesson(chys_wrapper.select_one(".group_content"))
+                den_data = extract_lesson(znam_wrapper.select_one(".group_content"))
                 if num_data:
                     num_data["is_active"] = chys_active
                 if den_data:
                     den_data["is_active"] = znam_active
-
                 if num_data or den_data:
                     schedule[current_day].append({
                         "pair": pair_number,
                         "pair_num": pair_num,
+                        "type": "num_den",
                         "numerator": num_data,
                         "denominator": den_data,
+                        "subgroup1": None,
+                        "subgroup2": None,
                         "info": None,
                         "url": None,
                     })
+
+            elif sub1_wrapper or sub2_wrapper:
+                # Пари розбиті на підгрупи
+                sub1_data = extract_lesson(sub1_wrapper.select_one(".group_content")) if sub1_wrapper else None
+                sub2_data = extract_lesson(sub2_wrapper.select_one(".group_content")) if sub2_wrapper else None
+                if sub1_data or sub2_data:
+                    schedule[current_day].append({
+                        "pair": pair_number,
+                        "pair_num": pair_num,
+                        "type": "subgroups",
+                        "numerator": None,
+                        "denominator": None,
+                        "subgroup1": sub1_data,
+                        "subgroup2": sub2_data,
+                        "info": None,
+                        "url": None,
+                    })
+
             else:
-                # Звичайна пара (один блок)
-                all_blocks = element.select(".group_content")
-                if len(all_blocks) == 1:
-                    data = extract_lesson(all_blocks[0])
-                    if data:
-                        schedule[current_day].append({
-                            "pair": pair_number,
-                            "pair_num": pair_num,
-                            "numerator": None,
-                            "denominator": None,
-                            "info": data["info"],
-                            "url": data["url"],
-                        })
+                # Звичайна пара для всієї групи
+                block = full_wrapper.select_one(".group_content") if full_wrapper else element.select_one(".group_content")
+                data = extract_lesson(block)
+                if data:
+                    schedule[current_day].append({
+                        "pair": pair_number,
+                        "pair_num": pair_num,
+                        "type": "full",
+                        "numerator": None,
+                        "denominator": None,
+                        "subgroup1": None,
+                        "subgroup2": None,
+                        "info": data["info"],
+                        "url": data["url"],
+                    })
 
     return schedule
 
