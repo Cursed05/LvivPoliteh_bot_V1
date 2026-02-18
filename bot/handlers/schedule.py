@@ -30,7 +30,8 @@ def week_keyboard(active_day: str, available_days: list[str]) -> InlineKeyboardM
             continue
         label = f"● {day}" if day == active_day else day
         buttons.append(InlineKeyboardButton(text=label, callback_data=f"week_day:{day}"))
-    return InlineKeyboardMarkup(inline_keyboard=[buttons])
+    send_row = [InlineKeyboardButton(text="📨 Надіслати повідомленнями", callback_data="week_send_messages")]
+    return InlineKeyboardMarkup(inline_keyboard=[buttons, send_row])
 
 
 
@@ -260,3 +261,24 @@ async def cb_week_day(callback: CallbackQuery):
     except Exception:
         pass  # Текст не змінився
     await callback.answer()
+
+
+@router.callback_query(F.data == "week_send_messages")
+async def cb_week_send_messages(callback: CallbackQuery):
+    """Надсилає розклад на тиждень окремими повідомленнями (по одному на день)."""
+    user = await get_user(callback.from_user.id)
+    if not user:
+        await callback.answer("⚠️ Профіль не налаштований")
+        return
+
+    schedule, label = await get_schedule_for_user(user)
+    subgroup = user.get("subgroup", 0)
+
+    await callback.answer("📨 Надсилаю...")
+
+    for day_key in DAY_ORDER:
+        if day_key not in schedule:
+            continue
+        lessons = schedule[day_key]
+        text = build_day_text(day_key, lessons, label, subgroup)
+        await callback.message.answer(text, parse_mode="HTML")
