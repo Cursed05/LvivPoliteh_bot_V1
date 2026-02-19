@@ -1,5 +1,11 @@
 BOT_TOKEN = "8213099279:AAE9XmvWcsW5fMnkx1ZOCnHwbMifolAQum0"
 
+# ID адміністраторів, які мають доступ до команди /message
+ADMIN_IDS = [
+    1884913346,
+    8554904196
+]
+
 SCHEDULE_URL = "https://student.lpnu.ua/students_schedule"
 
 # Час пар згідно розкладу ЛП (початок — кінець)

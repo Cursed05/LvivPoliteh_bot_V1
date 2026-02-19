@@ -45,3 +45,11 @@ async def get_all_users() -> list[dict]:
         ) as cursor:
             rows = await cursor.fetchall()
             return [dict(r) for r in rows]
+
+
+async def get_users_for_broadcast() -> list[int]:
+    """Повертає список ID всіх користувачів (без фільтрів)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT user_id FROM users") as cursor:
+            rows = await cursor.fetchall()
+            return [row[0] for row in rows]

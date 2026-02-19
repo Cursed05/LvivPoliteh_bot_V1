@@ -7,6 +7,7 @@ from bot.database.db import init_db
 from bot.handlers import start, settings, schedule
 from bot.handlers import teacher_lookup
 from bot.handlers import exams
+from bot.handlers import admin
 from bot.services.scheduler import setup_scheduler
 
 logging.basicConfig(
@@ -31,6 +32,7 @@ async def main():
     dp.include_router(schedule.router)
     dp.include_router(teacher_lookup.router)
     dp.include_router(exams.router)
+    dp.include_router(admin.router)
 
     # Запуск планувальника
     scheduler = setup_scheduler(bot)

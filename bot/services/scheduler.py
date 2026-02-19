@@ -1,13 +1,21 @@
+import time
 import datetime
 import asyncio
+import pytz
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from aiogram import Bot
 from bot.database.queries import get_all_users
 from bot.services.parser import fetch_schedule, invalidate_cache
 from config import PAIR_TIMES, DAY_MAP_REVERSE
 
+KYIV_TZ = pytz.timezone("Europe/Kyiv")
+
 # Зберігаємо попередній розклад для детектора змін
 _prev_schedules: dict = {}
+
+# Для детекції сну системи (зсув часу)
+_last_check_time: float = 0
+_last_check_mono: float = 0
 
 
 def format_lesson_notify(lesson: dict) -> str:
@@ -42,7 +50,30 @@ def format_lesson_notify(lesson: dict) -> str:
 
 async def notify_before_class(bot: Bot):
     """Перевіряє кожну хвилину — чи є пара через N хвилин у кожного користувача."""
-    now = datetime.datetime.now()
+    global _last_check_time, _last_check_mono
+
+    now = datetime.datetime.now(KYIV_TZ)
+    current_time = now.timestamp()
+    current_mono = time.monotonic()
+
+    # Детекція "сну" системи/старого часу
+    # Якщо з останньої перевірки пройшло мало часу за годинником, але багато за процесором —
+    # значить система спала, а годинник ще не синхронізувався.
+    if _last_check_time > 0:
+        delta_wall = current_time - _last_check_time
+        delta_mono = current_mono - _last_check_mono
+
+        # Якщо різниця між монотонним часом і реальним > 60 сек
+        # (наприклад, спали годину, а годинник каже пройшла 1 хв)
+        if delta_mono - delta_wall > 60:
+            print(f"[Warn] Clock drift detected! Sleep: {delta_mono:.1f}s, Wall: {delta_wall:.1f}s. Skipping...")
+            _last_check_time = current_time
+            _last_check_mono = current_mono
+            return
+
+    _last_check_time = current_time
+    _last_check_mono = current_mono
+
     weekday = now.weekday()
 
     if weekday >= 6:  # Неділя
@@ -113,7 +144,7 @@ async def notify_before_class(bot: Bot):
 
 async def notify_evening(bot: Bot):
     """Щодня о 20:00 надсилає розклад на завтра."""
-    tomorrow_num = (datetime.datetime.now().weekday() + 1) % 7
+    tomorrow_num = (datetime.datetime.now(KYIV_TZ).weekday() + 1) % 7
     if tomorrow_num >= 6:
         return
 
