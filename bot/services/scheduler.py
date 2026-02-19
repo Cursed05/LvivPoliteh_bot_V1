@@ -18,10 +18,14 @@ _last_check_time: float = 0
 _last_check_mono: float = 0
 
 
-def format_lesson_notify(lesson: dict) -> str:
-    """Форматує пару для сповіщення. Для чисельник/знаменник — показує активну."""
-    if lesson.get("numerator") or lesson.get("denominator"):
-        # Показуємо тільки активну пару
+def format_lesson_notify(lesson: dict, subgroup: int = 0) -> str:
+    """Форматує пару для сповіщення.
+    subgroup: 0 = вся група, 1 = перша, 2 = друга.
+    """
+    lesson_type = lesson.get("type", "full")
+
+    # Чисельник / знаменник
+    if lesson_type == "num_den":
         num = lesson.get("numerator")
         den = lesson.get("denominator")
         active = None
@@ -30,22 +34,50 @@ def format_lesson_notify(lesson: dict) -> str:
         elif den and den.get("is_active"):
             active = den
         else:
-            # Якщо жодна не активна — показуємо обидві
             parts = []
             if num:
                 parts.append(f"📌 Чисельник: {num['info']}")
             if den:
                 parts.append(f"📌 Знаменник: {den['info']}")
-            return "\n".join(parts)
+            return "\n".join(parts) if parts else "(невідома пара)"
         lines = [f"📖 {active['info']}"]
         if active.get("url"):
             lines.append(f"🔗 {active['url']}")
         return "\n".join(lines)
-    else:
-        lines = [f"📖 {lesson['info']}"]
-        if lesson.get("url"):
-            lines.append(f"🔗 {lesson['url']}")
+
+    # Підгрупи
+    if lesson_type == "subgroups":
+        sub1 = lesson.get("subgroup1")
+        sub2 = lesson.get("subgroup2")
+        # Вибираємо відповідну підгрупу
+        if subgroup == 1:
+            data = sub1
+        elif subgroup == 2:
+            data = sub2
+        else:
+            # Якщо підгрупа не вказана — показуємо обидві
+            parts = []
+            if sub1:
+                parts.append(f"👥 1-ша підгрупа:\n📖 {sub1['info']}")
+            if sub2:
+                parts.append(f"👥 2-га підгрупа:\n📖 {sub2['info']}")
+            return "\n\n".join(parts) if parts else "(невідома пара)"
+
+        if not data:
+            return "(невідома підгрупа)"
+        lines = [f"📖 {data['info']}"]
+        if data.get("url"):
+            lines.append(f"🔗 {data['url']}")
         return "\n".join(lines)
+
+    # Звичайна пара (full)
+    info = lesson.get("info")
+    if not info:
+        return "(невідома пара)"
+    lines = [f"📖 {info}"]
+    if lesson.get("url"):
+        lines.append(f"🔗 {lesson['url']}")
+    return "\n".join(lines)
 
 
 async def notify_before_class(bot: Bot):
@@ -110,11 +142,19 @@ async def notify_before_class(bot: Bot):
             continue
 
         lessons = schedule.get(day_key, [])
+        user_subgroup = user.get("subgroup", 0)
 
         for lesson in lessons:
             pair_num = lesson.get("pair_num")
             if not pair_num:
                 continue
+
+            # Пропускаємо чужу підгрупу
+            lesson_type = lesson.get("type", "full")
+            if lesson_type == "subgroups" and user_subgroup in (1, 2):
+                sub = lesson.get(f"subgroup{user_subgroup}")
+                if not sub:
+                    continue  # Ця підгрупа не має пари у цей час
 
             pair_time_str = PAIR_TIMES.get(pair_num)
             if not pair_time_str:
@@ -135,7 +175,7 @@ async def notify_before_class(bot: Bot):
                         user["user_id"],
                         f"⏰ <b>Через {notify_before} хвилин пара!</b>\n\n"
                         f"🕐 {lesson['pair']} ({pair_time_str})\n"
-                        f"{format_lesson_notify(lesson)}",
+                        f"{format_lesson_notify(lesson, user_subgroup)}",
                         parse_mode="HTML"
                     )
                 except Exception:
