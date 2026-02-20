@@ -171,15 +171,17 @@ async def notify_before_class(bot: Bot):
             # Надсилаємо якщо залишилось рівно notify_before хвилин (±0.5 хв)
             if abs(diff - notify_before) <= 0.5:
                 try:
+                    formatted = format_lesson_notify(lesson, user_subgroup)
+                    print(f"[DEBUG notify] uid={user['user_id']} subgroup={user_subgroup} type={lesson.get('type')} formatted={repr(formatted)}")
                     await bot.send_message(
                         user["user_id"],
                         f"⏰ <b>Через {notify_before} хвилин пара!</b>\n\n"
                         f"🕐 {lesson['pair']} ({pair_time_str})\n"
-                        f"{format_lesson_notify(lesson, user_subgroup)}",
+                        f"{formatted}",
                         parse_mode="HTML"
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"[DEBUG notify ERROR] {e}")
 
 
 async def notify_evening(bot: Bot):
